@@ -43,6 +43,7 @@ serialize = [
 std = [
     "serde/std"
 ]
+capi = []
 
 [build-dependencies]
 cargo-emit = "0.2"

@@ -187,10 +187,17 @@ pub extern "C" fn crashlog_read_from_acpi_sysfs(context: *mut CrashLogContext) -
 /// # Errors
 ///
 /// Returns a `NULL` pointer if the Crash Log record cannot be found.
+///
+/// # Note
+///
+/// If multiple PMT endpoints exist, this function returns only the first one.
+/// Use the Rust API directly to access all endpoints.
 #[cfg(any(all(target_os = "linux", feature = "extraction"), doc))]
 #[unsafe(no_mangle)]
 pub extern "C" fn crashlog_read_from_pmt_sysfs(context: *mut CrashLogContext) -> *mut CrashLog {
     CrashLog::from_pmt_sysfs()
+        .ok()
+        .and_then(|mut logs| logs.pop())
         .map(alloc)
         .unwrap_or(ptr::null_mut())
 }

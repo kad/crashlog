@@ -29,8 +29,8 @@ impl CrashLog {
     }
 
     /// Reads the Crash Log reported through Intel PMT from the linux sysfs
-    pub fn from_pmt_sysfs() -> Result<Self, Error> {
-        let regions: Vec<Region> = std::fs::read_dir(PMT_PATH)
+    pub fn from_pmt_sysfs() -> Result<Vec<Self>, Error> {
+        let crashlogs: Vec<Self> = std::fs::read_dir(PMT_PATH)
             .map_err(|err| {
                 log::warn!("Cannot read {PMT_PATH}: {err}");
                 match err.kind() {
@@ -57,6 +57,7 @@ impl CrashLog {
                 is_dir && is_crashlog_dir
             })
             .filter_map(|entry| {
+                let endpoint_name = entry.file_name().to_string_lossy().to_string();
                 let mut path = entry.path();
 
                 log::info!("Found Crash Log entry in PMT sysfs: {}", path.display());
@@ -68,9 +69,21 @@ impl CrashLog {
                     .inspect(|_| log::info!("Extracted valid record from {}", path.display()))
                     .inspect_err(|err| log::error!("{}: {err}", path.display()))
                     .ok()
+                    .and_then(|region| {
+                        Self::from_regions(vec![region])
+                            .map(|mut crashlog| {
+                                crashlog.metadata.source = Some(endpoint_name);
+                                crashlog
+                            })
+                            .ok()
+                    })
             })
             .collect();
 
-        Self::from_regions(regions)
+        if crashlogs.is_empty() {
+            Err(Error::NoCrashLogFound)
+        } else {
+            Ok(crashlogs)
+        }
     }
 }

@@ -19,6 +19,8 @@ pub struct Metadata {
     pub computer: Option<String>,
     /// Time of the extraction
     pub time: Option<Time>,
+    /// Source of the Crash Log extraction (e.g., PMT endpoint path)
+    pub source: Option<String>,
     /// When the Crash Log is extracted from a CPER, this field stores the extra CPER sections that
     /// could be read from the CPER structure.
     pub extra_cper_sections: Vec<CperSectionBody>,
@@ -35,11 +37,15 @@ pub struct Time {
 
 impl fmt::Display for Metadata {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match (self.computer.as_ref(), self.time.as_ref()) {
-            (Some(computer), Some(time)) => write!(f, "{computer}-{time}"),
-            (None, Some(time)) => write!(f, "{time}"),
-            (Some(computer), None) => write!(f, "{computer}"),
-            (None, None) => write!(f, "unnamed"),
+        match (self.computer.as_ref(), self.time.as_ref(), self.source.as_ref()) {
+            (Some(computer), Some(time), Some(source)) => write!(f, "{computer}-{time}-{source}"),
+            (Some(computer), Some(time), None) => write!(f, "{computer}-{time}"),
+            (Some(computer), None, Some(source)) => write!(f, "{computer}-{source}"),
+            (None, Some(time), Some(source)) => write!(f, "{time}-{source}"),
+            (None, None, Some(source)) => write!(f, "{source}"),
+            (None, Some(time), None) => write!(f, "{time}"),
+            (Some(computer), None, None) => write!(f, "{computer}"),
+            (None, None, None) => write!(f, "unnamed"),
         }
     }
 }

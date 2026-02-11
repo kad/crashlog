@@ -15,10 +15,16 @@ pub fn extract(output_path: Option<&Path>) {
     }
     #[cfg(target_os = "linux")]
     {
-        result = Ok([CrashLog::from_acpi_sysfs(), CrashLog::from_pmt_sysfs()]
-            .into_iter()
-            .filter_map(|crashlog| crashlog.ok())
-            .collect::<Vec<CrashLog>>());
+        result = match (CrashLog::from_acpi_sysfs(), CrashLog::from_pmt_sysfs()) {
+            (Ok(acpi), Ok(pmt_logs)) => {
+                let mut all_logs = vec![acpi];
+                all_logs.extend(pmt_logs);
+                Ok(all_logs)
+            }
+            (Ok(acpi), Err(_)) => Ok(vec![acpi]),
+            (Err(_), Ok(pmt_logs)) => Ok(pmt_logs),
+            (Err(e1), Err(_)) => Err(e1),
+        };
     }
 
     match result {
