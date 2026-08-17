@@ -1,0 +1,9 @@
+# Libraries produced by rustc do not use the fortified variants of the C library functions, and
+# rustc has no equivalent of -D_FORTIFY_SOURCE. This applies to every Rust package.
+libintel-crashlog1: hardening-no-fortify-functions [usr/lib/*/libintel_crashlog.so.*]
+
+# A symbols file is deliberately not shipped. The exported set of a Rust cdylib depends on the
+# target and on the Cargo features it was built with, which makes it impractical to track by hand,
+# and rustc offers nothing comparable to a linker version script to pin it down. dh_makeshlibs is
+# called with -V instead, so the dependency is tied to the upstream version. See debian/rules.
+libintel-crashlog1: no-symbols-control-file [usr/lib/*/libintel_crashlog.so.*]

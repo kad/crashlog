@@ -1,2 +1,7 @@
 * text=auto eol=lf
 *.csv text eol=crlf
+
+# Keep the Debian packaging out of the tarballs produced by `git archive`: an upstream tarball
+# that already contains a debian/ directory confuses the Debian source package tooling.
+/debian export-ignore
+

@@ -1,0 +1,236 @@
+#!/usr/bin/make -f
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: MIT
+
+include /usr/share/dpkg/architecture.mk
+include /usr/share/dpkg/pkg-info.mk
+include /usr/share/dpkg/buildflags.mk
+
+# rustc takes the linker flags of the distribution through -Clink-arg, which is how dh-cargo passes
+# them on as well. This build cannot use dh-cargo, so they are set here: without them the hardening
+# options of the distribution, such as -Wl,-z,now, would be lost. The compiler flags are not passed
+# on, since none of the crates that are built here compiles C code.
+export RUSTFLAGS = $(foreach flag,$(LDFLAGS),-Clink-arg=$(flag))
+
+# The Rust standard library is linked statically into every binary this package builds, which is
+# what Static-Built-Using records. dh-cargo would provide a substitution variable for it; this
+# build fills it in from the toolchain that rustc pulls in.
+RUST_SOURCE := $(shell dpkg-query -f '$${source:Package} (= $${source:Version})' \
+                   -W libstd-rust-dev 2>/dev/null)
+
+# Upstream version of the shared library, used to derive its file name. The SONAME is set by
+# lib/build.rs from the major version of the crate.
+SOVERSION := $(firstword $(subst ., ,$(DEB_VERSION_UPSTREAM)))
+LIBVERSION := $(DEB_VERSION_UPSTREAM)
+LIBNAME := libintel_crashlog.so
+
+# Everything Cargo and rustup write stays under debian/ so that dh_auto_clean can remove it
+# wholesale, and so that nothing touches the home directory of the build user.
+export CARGO_HOME = $(CURDIR)/debian/cargo
+export RUSTUP_HOME = $(CURDIR)/debian/rustup
+
+# Each crate gets its own target directory. The library is built with the `ffi` feature, which sets
+# the SONAME, while the application depends on it with the default features: sharing a target
+# directory would let one build overwrite the shared library produced by the other.
+BUILD_DIR := $(CURDIR)/debian/build
+LIB_TARGET := $(BUILD_DIR)/lib
+APP_TARGET := $(BUILD_DIR)/app
+EFI_TARGET := $(BUILD_DIR)/efi
+
+# The crates set `strip` in their release profile, which would leave nothing for dh_strip to move
+# into the -dbgsym packages. Environment variables take precedence over the manifests.
+export CARGO_PROFILE_RELEASE_STRIP = false
+export CARGO_PROFILE_RELEASE_DEBUG = 2
+
+# The dependencies are shipped in the vendor component of the upstream tarball, so the build never
+# reaches the network. See packaging/vendor.sh.
+VENDOR_DIR := $(CURDIR)/vendor
+ifneq ($(wildcard $(VENDOR_DIR)),)
+export CARGO_NET_OFFLINE = true
+endif
+
+# The Rust helpers of the archive locate the vendored tree through this variable. Nothing in this
+# file reads it, since the source replacement stanza below points Cargo at $(VENDOR_DIR) directly,
+# but dh-cargo-vendored-sources does, and it is exported because other helpers may as well.
+export CARGO_VENDOR_DIR = vendor
+
+# Checks XS-Vendored-Sources-Rust in debian/control against what is actually in vendor/, and prints
+# the expected value when the two disagree. The script is currently only shipped by the Ubuntu build
+# of dh-cargo, so its absence is not an error.
+VENDORED_SOURCES_CHECK := /usr/share/cargo/bin/dh-cargo-vendored-sources
+
+# Enabling the pkg.intel-crashlog.efi build profile adds the intel-crashlog-efi package. It is
+# disabled by default because the x86_64-unknown-uefi target is not covered by the Rust toolchain
+# packaged in Debian: a rustup managed toolchain providing that target is required, and installing
+# it needs network access. The condition also covers the architecture, because intel-crashlog-efi is
+# an amd64 only package: without that, the binary would be built and left behind in debian/tmp on
+# every other architecture, which dh_missing reports as an error.
+EFI_TRIPLE := x86_64-unknown-uefi
+EFI_TOOLCHAIN := stable
+BUILD_EFI := $(and $(filter pkg.intel-crashlog.efi,$(DEB_BUILD_PROFILES)), \
+                   $(filter amd64,$(DEB_HOST_ARCH)))
+
+# --all-features is, for the library, the default features plus `ffi`, which is what generates the C
+# and C++ headers and sets the SONAME. --locked keeps the build from re-resolving the dependency
+# tree: the lock files are part of the source package and describe exactly what vendor/ contains.
+CARGO_FLAGS := --release --locked --all-features
+
+# DEB_BUILD_OPTIONS: parallel=N caps the number of concurrent jobs, and terse asks for a quiet
+# build log. Cargo is otherwise left verbose, so that the rustc invocations end up in the log.
+NUMJOBS := $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+CARGO_FLAGS += $(if $(NUMJOBS),-j$(NUMJOBS))
+CARGO_FLAGS += $(if $(filter terse,$(DEB_BUILD_OPTIONS)),--quiet,--verbose)
+
+# Generated assets: manual pages and shell completion scripts.
+ASSETS_DIR := $(BUILD_DIR)/assets
+
+%:
+	dh $@
+
+# dh_clean's default backup-file patterns include "*.orig", which also matches the untouched
+# per-crate Cargo.toml.orig files that cargo vendor writes into vendor/ (kept so patched crates can
+# be diffed against upstream). Exclude the whole vendor tree from that cleanup, or dh_clean removes
+# them and a subsequent build fails checksum verification against .cargo-checksum.json.
+override_dh_clean:
+	dh_clean -X vendor/
+
+override_dh_auto_configure:
+	# The manual pages and the completion scripts are generated by running the binary that has
+	# just been built, so the build architecture has to be able to execute it. Refuse a cross
+	# build rather than installing host binaries built for the build architecture.
+ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
+	@echo "E: cross-building is not supported: the manual pages and the completion scripts" >&2
+	@echo "E: are generated by running the iclg binary." >&2
+	@exit 1
+endif
+ifneq ($(wildcard $(VENDOR_DIR)),)
+	mkdir -p $(CARGO_HOME)
+	# Cargo reads $$CARGO_HOME/config.toml, which keeps the source tree untouched. The path has
+	# to be absolute because the crates are built from their own directories.
+	printf '%s\n' \
+	    '[source.crates-io]' \
+	    'replace-with = "vendored-sources"' \
+	    '' \
+	    '[source.vendored-sources]' \
+	    'directory = "$(VENDOR_DIR)"' \
+	    > $(CARGO_HOME)/config.toml
+	# Fails the build when XS-Vendored-Sources-Rust and vendor/ have drifted apart, and prints
+	# the value the field should have.
+	[ ! -x $(VENDORED_SOURCES_CHECK) ] || $(VENDORED_SOURCES_CHECK)
+else
+	@echo "W: $(VENDOR_DIR) is missing, the dependencies will be downloaded by Cargo." >&2
+	@echo "W: Run packaging/vendor.sh to build offline." >&2
+endif
+
+override_dh_auto_build:
+	# cbindgen writes the generated headers next to the crate rather than into the target
+	# directory, so make sure the destination exists.
+	mkdir -p lib/target/include
+	cd lib && CARGO_TARGET_DIR=$(LIB_TARGET) cargo build $(CARGO_FLAGS)
+	cd app && CARGO_TARGET_DIR=$(APP_TARGET) cargo build $(CARGO_FLAGS)
+ifneq ($(BUILD_EFI),)
+	# The distribution toolchain has no standard library for x86_64-unknown-uefi, so the target
+	# is provided by a rustup managed toolchain installed under debian/rustup. It has to be
+	# called through `rustup run`, since `cargo` on PATH is the one from the cargo package.
+	# Nothing is extracted into a -dbgsym package from a PE binary, so it is stripped instead.
+	rustup toolchain install --profile minimal --target $(EFI_TRIPLE) $(EFI_TOOLCHAIN)
+	# RUSTFLAGS is cleared: it carries the linker flags used for the ELF binaries of the
+	# distribution, and the UEFI target links PE binaries with rust-lld, which rejects them.
+	cd efi && CARGO_TARGET_DIR=$(EFI_TARGET) CARGO_PROFILE_RELEASE_STRIP=true RUSTFLAGS= \
+	    rustup run $(EFI_TOOLCHAIN) cargo build --release --locked \
+	    --target $(EFI_TRIPLE) $(if $(NUMJOBS),-j$(NUMJOBS))
+endif
+	# The manual pages and the completion scripts are derived from the command line definition
+	# by the tool itself, so that they cannot drift from the actual interface.
+	$(APP_TARGET)/release/iclg generate-assets --output-dir $(ASSETS_DIR)
+	# The repository and the application both have a README.md, and dh_installdocs installs
+	# documentation under its base name: they are renamed so that the two can be shipped side by
+	# side in /usr/share/doc/intel-crashlog.
+	mkdir -p $(BUILD_DIR)/doc
+	cp README.md $(BUILD_DIR)/doc/README.md
+	cp app/README.md $(BUILD_DIR)/doc/README.iclg.md
+	sed -e 's|@PREFIX@|/usr|' \
+	    -e 's|@LIBDIR@|/usr/lib/$(DEB_HOST_MULTIARCH)|' \
+	    -e 's|@INCLUDEDIR@|/usr/include|' \
+	    -e 's|@VERSION@|$(DEB_VERSION_UPSTREAM)|' \
+	    packaging/intel_crashlog.pc.in > $(BUILD_DIR)/intel_crashlog.pc
+
+override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	cd lib && CARGO_TARGET_DIR=$(LIB_TARGET) cargo test $(CARGO_FLAGS)
+	$(APP_TARGET)/release/iclg --version
+endif
+
+override_dh_auto_install:
+	# Command line tool.
+	install -D -m 0755 $(APP_TARGET)/release/iclg \
+	    debian/tmp/usr/bin/iclg
+	install -d debian/tmp/usr/share/man/man1
+	install -m 0644 $(ASSETS_DIR)/*.1 debian/tmp/usr/share/man/man1/
+	install -D -m 0644 $(ASSETS_DIR)/iclg.bash \
+	    debian/tmp/usr/share/bash-completion/completions/iclg
+	install -D -m 0644 $(ASSETS_DIR)/_iclg \
+	    debian/tmp/usr/share/zsh/vendor-completions/_iclg
+	install -D -m 0644 $(ASSETS_DIR)/iclg.fish \
+	    debian/tmp/usr/share/fish/vendor_completions.d/iclg.fish
+
+	# Shared library. The real file carries the full version, the SONAME is a symbolic link to
+	# it and the development link points at the SONAME.
+	install -D -m 0644 $(LIB_TARGET)/release/$(LIBNAME) \
+	    debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/$(LIBNAME).$(LIBVERSION)
+	ln -sf $(LIBNAME).$(LIBVERSION) \
+	    debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/$(LIBNAME).$(SOVERSION)
+	ln -sf $(LIBNAME).$(SOVERSION) \
+	    debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/$(LIBNAME)
+
+	# Development files.
+	install -D -m 0644 lib/target/include/intel_crashlog.h \
+	    debian/tmp/usr/include/intel_crashlog.h
+	install -D -m 0644 lib/target/include/intel_crashlog.hpp \
+	    debian/tmp/usr/include/intel_crashlog.hpp
+	install -D -m 0644 $(BUILD_DIR)/intel_crashlog.pc \
+	    debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/intel_crashlog.pc
+
+ifneq ($(BUILD_EFI),)
+	# The UEFI application is not executed on the installed system: it is copied to an EFI
+	# system partition and started from the UEFI shell.
+	install -D -m 0644 $(EFI_TARGET)/$(EFI_TRIPLE)/release/iclg.efi \
+	    debian/tmp/usr/lib/intel-crashlog/efi/iclg.efi
+endif
+
+override_dh_auto_clean:
+	rm -rf debian/build debian/cargo debian/rustup
+	rm -rf lib/target app/target efi/target
+
+# A symbols file is deliberately not shipped: the exported set depends on the target operating
+# system and on the Cargo features, which makes it hard to track reliably for a Rust library. The
+# shlibs file generated with -V keeps the dependency tied to the upstream version instead.
+override_dh_makeshlibs:
+	dh_makeshlibs -V
+
+# Static-Built-Using is filled in here rather than by the substitution variable dh-cargo would
+# provide. libintel-crashlog-dev is excluded because it contains no compiled code, and passing the
+# variable to it would only make dpkg-gencontrol report it as unused.
+override_dh_gencontrol:
+	dh_gencontrol -Nlibintel-crashlog-dev -- -VStatic-Built-Using='$(RUST_SOURCE)'
+	dh_gencontrol -plibintel-crashlog-dev
+
+# dwz cannot process the debugging information produced by rustc.
+override_dh_dwz:
+
+# Maintainer targets. Neither is part of a package build: both need network access, and
+# vendor-tarball rewrites the working tree.
+.PHONY: vendor-tarball vendored-sources
+
+# Re-creates the vendor component of the upstream tarball. packaging/create-tarballs.sh also exports
+# the upstream tarball and refuses to run while the lock files in the working tree differ from the
+# committed ones, which matters because the build resolves the dependencies with --locked.
+vendor-tarball:
+	./packaging/create-tarballs.sh
+
+# Prints the value XS-Vendored-Sources-Rust should have for the current vendor/, so that it can be
+# pasted into debian/control.
+vendored-sources:
+	@[ -d $(VENDOR_DIR) ] || { echo "E: $(VENDOR_DIR) is missing, run ./packaging/vendor.sh" >&2; exit 1; }
+	@[ -x $(VENDORED_SOURCES_CHECK) ] || { echo "E: $(VENDORED_SOURCES_CHECK) is missing, install dh-cargo" >&2; exit 1; }
+	$(VENDORED_SOURCES_CHECK)

@@ -1,0 +1,77 @@
+# syntax=docker/dockerfile:1
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: MIT
+#
+# Builds the Debian packages from the source package produced by Dockerfile.source, and runs lintian
+# over the result. The container is started without network access, which is what proves that the
+# build resolves every dependency from the vendored sources.
+ARG BASE_IMAGE=ubuntu:latest
+FROM ${BASE_IMAGE}
+
+ARG DEBIAN_FRONTEND=noninteractive
+# Set to 1 to build the UEFI application as well. It needs a rustup managed toolchain, so rustup is
+# installed here and the build container has to be given network access; see packaging/README.md.
+ARG WITH_EFI=0
+
+# equivs and devscripts provide mk-build-deps, which installs exactly the Build-Depends of
+# debian/control, so that this file never has to repeat the dependency list.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        devscripts \
+        dpkg-dev \
+        equivs \
+        fakeroot \
+        lintian; \
+    rm -rf /var/lib/apt/lists/*
+
+# The control file of the revision being built, copied in on its own so that this layer is only
+# rebuilt when the build dependencies change. No build profile is active here, so the rustup
+# dependency of the efi profile is not installed by this step; see the next one.
+COPY debian/control /tmp/build-deps/debian/control
+RUN set -eux; \
+    apt-get update; \
+    ( \
+        cd /tmp/build-deps; \
+        mk-build-deps --install --remove \
+            --tool 'apt-get -y --no-install-recommends' debian/control; \
+    ); \
+    rm -rf /var/lib/apt/lists/* /tmp/build-deps; \
+    rustc --version; \
+    cargo --version
+
+# rustup is packaged in the recent releases of Debian and Ubuntu; where it is not, it comes from its
+# own installer, and a dummy package is registered with dpkg afterwards, because debian/control lists
+# rustup in Build-Depends-Arch under the efi build profile and dpkg-buildpackage would otherwise
+# refuse to start. No toolchain is installed here: debian/rules installs the one it needs, for the
+# x86_64-unknown-uefi target, under the build directory.
+RUN set -eux; \
+    if [ "$WITH_EFI" = 1 ]; then \
+        apt-get update; \
+        apt-get install -y --no-install-recommends curl; \
+        if ! apt-get install -y --no-install-recommends rustup; then \
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+                sh -s -- -y --no-modify-path --profile minimal --default-toolchain none; \
+            printf '%s\n' \
+                'Section: misc' \
+                'Priority: optional' \
+                'Standards-Version: 4.7.0' \
+                'Package: rustup' \
+                'Version: 0~installer' \
+                'Description: placeholder for the rustup installed by its own installer' \
+                > /tmp/rustup-equivs; \
+            (cd /tmp && equivs-build /tmp/rustup-equivs && dpkg -i /tmp/rustup_*.deb); \
+            rm -f /tmp/rustup-equivs /tmp/rustup_*; \
+        fi; \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+COPY packaging/docker/build-deb.sh /usr/local/bin/build-deb
+RUN chmod 0755 /usr/local/bin/build-deb
+
+# The source package is bind mounted read only on /in, the packages are written to /out.
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/build-deb"]

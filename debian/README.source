@@ -1,0 +1,93 @@
+Source package layout
+=====================
+
+This source package has two upstream tarballs:
+
+  intel-crashlog_<version>.orig.tar.xz         the sources exported from Git
+  intel-crashlog_<version>.orig-vendor.tar.xz  the Rust dependencies
+
+The crates this project depends on are bundled rather than taken from the
+librust-*-dev packages in the archive: dpkg-source unpacks the second tarball
+into vendor/, debian/rules points Cargo at it through a source replacement
+stanza in $CARGO_HOME, and the build runs with CARGO_NET_OFFLINE=true and
+--locked. The build therefore never reaches the network, and never re-resolves
+the dependency tree.
+
+Most of the dependencies of the library and of the command line tool do exist in
+the archive, so those two could be built against them; the crates the UEFI
+application needs, the uefi family and its dependencies, do not, and neither
+does a Rust standard library for the x86_64-unknown-uefi target. Bundling keeps
+the three crates building the same way and keeps the build reproducible against
+the lock files. It is also what Ubuntu asks for: the Main Inclusion Review rules
+for Rust require packages in main to vendor their Rust dependencies rather than
+rely on the individual crate packages. What is bundled is declared in
+debian/copyright and in the XS-Vendored-Sources-Rust field of debian/control, and
+Static-Built-Using records the one thing that does come from another source
+package: the Rust standard library, linked statically in from libstd-rust-dev.
+
+XS-Vendored-Sources-Rust lists every bundled crate as CRATE@VERSION. It is the
+union of the three lock files, since the three crates share one vendored tree,
+and it is checked during dh_auto_configure by dh-cargo-vendored-sources, which
+prints the expected value when the field and vendor/ have drifted apart.
+`debian/rules vendored-sources` prints the same list on demand. The script is
+currently only shipped by the Ubuntu build of dh-cargo, so the check is skipped
+where it is absent; the field is still expected to be correct there.
+
+Two things the Ubuntu rules for Rust in main require are satisfied without any
+work here, and are worth re-checking when the dependency tree changes. Nothing
+in the tree does TLS, so the requirement to use the system OpenSSL rather than
+rustls does not apply. And although the UEFI crate has a rust-toolchain.toml,
+it only requests the x86_64-unknown-uefi target and pins neither a channel nor a
+compiler version, so it does not fall under the rule that crates pinning a
+toolchain are kept out of the archive; a stable rustc builds it, and rustup is
+needed only for the standard library of that target.
+
+cargo vendor cannot restrict itself to the platforms that are actually built, so
+the tree also holds the Windows halves of jiff and of the clap colour support,
+which are a large part of it. Ubuntu suggests stripping those out;
+packaging/vendor.sh --prune-windows does it, but that is not the default, since a
+crate cargo still resolves and can no longer find is a build failure that nothing
+in this repository would catch. Turning it on means confirming an offline
+--locked build of all three crates and regenerating XS-Vendored-Sources-Rust.
+
+Both tarballs are produced by packaging/create-tarballs.sh, which exports the
+sources from Git and runs packaging/vendor.sh. Because vendoring refreshes the
+lock files and the build uses --locked, that script refuses to create the
+tarballs while the lock files in the working tree differ from the ones it would
+export: commit them first. For the same reason the lock files are not listed in
+debian/source/options: a difference has to show up in the Debian diff instead of
+being dropped from the source package.
+
+That script leaves the vendored dependencies in vendor/, so dpkg-buildpackage in
+the working tree resolves them from there and stays offline as well.
+
+debian/watch only serves to detect new upstream releases. The tarballs GitHub
+publishes cannot be used directly, since they lack the vendor component.
+
+Updating the packaging for a new upstream release
+------------------------------------------------
+
+ 1. ./packaging/create-tarballs.sh, and commit the refreshed lock files if it
+    asks for it. `debian/rules vendor-tarball` is an alias for it.
+ 2. Update XS-Vendored-Sources-Rust in debian/control from
+    `debian/rules vendored-sources`. A build with the Ubuntu dh-cargo installed
+    fails until the field matches the vendored tree.
+ 3. Check the licensing of the bundled crates, which
+    ./packaging/vendor-licenses.sh reports, against the stanzas covering
+    vendor/* in debian/copyright. Those stanzas summarise the vendored tree;
+    ./packaging/vendor-licenses.sh -f dep5 generates the per-crate stanzas that
+    replace them for an upload to the archive.
+ 4. The SONAME of the shared library is derived from the major version of the
+    crate by lib/build.rs. When it changes, rename the libintel-crashlog1
+    binary package accordingly.
+
+The UEFI application
+--------------------
+
+The intel-crashlog-efi package is only built when the pkg.intel-crashlog.efi
+build profile is enabled, on amd64. It needs a rustup managed toolchain for the
+x86_64-unknown-uefi target, which the Rust toolchain packaged in Debian does not
+provide, and installing it requires network access. It is therefore not suitable
+for an official archive build.
+
+ -- Intel Corporation <crashlog@intel.com>  Fri, 14 Aug 2026 12:00:00 +0300

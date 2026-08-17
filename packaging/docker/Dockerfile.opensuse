@@ -1,0 +1,61 @@
+# syntax=docker/dockerfile:1
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: MIT
+#
+# Builds the RPM packages from the tarballs produced by Dockerfile.source, by way of a source RPM,
+# and runs rpmlint over the result. The container is started without network access, which is what
+# proves that the build resolves every dependency from the vendored sources.
+#
+# Tumbleweed rather than Leap: the spec uses %bcond_with, which needs rpm 4.17 or later, and the
+# build needs a Rust toolchain from 1.85 or later. Leap 15 has neither.
+ARG BASE_IMAGE=opensuse/tumbleweed:latest
+FROM ${BASE_IMAGE}
+
+# Set to 1 to build the UEFI application as well. It needs a rustup managed toolchain, so rustup is
+# installed here and the build container has to be given network access; see packaging/README.md.
+ARG WITH_EFI=0
+
+RUN set -eux; \
+    zypper --non-interactive --gpg-auto-import-keys refresh; \
+    zypper --non-interactive install --no-recommends \
+        gzip \
+        rpm-build \
+        rpmlint \
+        tar \
+        xz; \
+    zypper clean --all
+
+# The spec of the revision being built, copied in on its own so that this layer is only rebuilt when
+# the build dependencies change. openSUSE has no equivalent of `dnf builddep`, so the tags are read
+# out of the spec with rpmspec; the version constraints are dropped, because zypper takes a package
+# name per argument and Tumbleweed is newer than every constraint this spec has.
+COPY packaging/rpm/intel-crashlog.spec /tmp/intel-crashlog.spec
+RUN set -eux; \
+    zypper --non-interactive --gpg-auto-import-keys refresh; \
+    rpmspec -q --buildrequires /tmp/intel-crashlog.spec | awk '{ print $1 }' | sort -u > /tmp/deps; \
+    cat /tmp/deps; \
+    xargs -r zypper --non-interactive install --no-recommends < /tmp/deps; \
+    zypper clean --all; \
+    rm -f /tmp/intel-crashlog.spec /tmp/deps; \
+    rustc --version; \
+    cargo --version
+
+# No toolchain is installed here: the spec installs the one it needs, for the x86_64-unknown-uefi
+# target, under the build directory.
+RUN set -eux; \
+    if [ "$WITH_EFI" = 1 ]; then \
+        zypper --non-interactive install --no-recommends rustup || { \
+            zypper --non-interactive install --no-recommends curl; \
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+                sh -s -- -y --no-modify-path --profile minimal --default-toolchain none; \
+        }; \
+        zypper clean --all; \
+    fi
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+COPY packaging/docker/build-rpm.sh /usr/local/bin/build-rpm
+RUN chmod 0755 /usr/local/bin/build-rpm
+
+# The tarballs are bind mounted read only on /in, the packages are written to /out.
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/build-rpm"]

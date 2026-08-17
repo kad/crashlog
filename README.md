@@ -86,6 +86,9 @@ as a standalone application or be integrated into other applications.
   decoding Crash Log records.
 - **[EFI Tool](efi/):** An EFI tool for reading Crash Log records stored in
   ACPI tables from the EFI shell.
+- **[Distribution Packaging](packaging/):** Rules for building Debian, Ubuntu,
+  Fedora and openSUSE packages, together with the [`debian`](debian/) directory
+  at the root of the repository.
 
 ## Getting Started
 
@@ -117,6 +120,8 @@ as a standalone application or be integrated into other applications.
 >   [this document](efi/README.md).
 > - To use this reference code in your own application, refer to
 >   [this document](lib/README.md).
+> - To build native packages instead, including inside containers, refer to
+>   [this document](packaging/README.md).
 
 ### Usage
 

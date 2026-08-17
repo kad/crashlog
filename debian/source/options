@@ -1,0 +1,10 @@
+# The vendored Rust dependencies are shipped as an additional component of the upstream tarball,
+# intel-crashlog_<version>.orig-vendor.tar.xz, which dpkg-source unpacks into vendor/.
+extend-diff-ignore = "^vendor/"
+
+# Build artefacts of the crates, in case the package is built from a working tree.
+extend-diff-ignore = "^(lib|app|efi)/target/"
+
+# The lock files are deliberately not ignored here. The build resolves the dependencies with
+# --locked, so a difference between the working tree and the upstream tarball has to end up in the
+# Debian diff rather than being silently dropped from the source package.

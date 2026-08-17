@@ -1,0 +1,61 @@
+# Cargo build output. This covers lib/, app/, efi/ and any crate added later, together with
+# everything written below it: the debug and release profiles, the headers cbindgen generates into
+# lib/target/include, and the `cargo doc` output the documentation workflow copies out of
+# lib/target/doc. The per-crate .gitignore files predate this one and are now redundant.
+target/
+
+# The lock files are deliberately *not* ignored. This repository ships binaries as well as a
+# library, and the distribution packaging in debian/ and packaging/rpm/ resolves the dependencies
+# with --locked against the vendored tree, so lib/Cargo.lock, app/Cargo.lock and efi/Cargo.lock are
+# part of the source. See packaging/README.md.
+
+# Backup files written by rustfmt.
+*.rs.bk
+
+# Debugging information produced by the MSVC builds of rustc.
+*.pdb
+
+# Coverage and profiling output. None of these tools is wired into the build, but they all write
+# into the working tree when run by hand.
+*.profraw
+*.profdata
+lcov.info
+tarpaulin-report.html
+flamegraph.svg
+perf.data
+perf.data.old
+
+# Vendored Rust dependencies, created by packaging/vendor.sh. The tarballs that script produces are
+# written to the parent directory and are therefore outside the repository.
+/vendor/
+
+# Local reproduction of the GitHub Pages job of .github/workflows/docs.yml.
+/_site/
+
+# Artefacts of a Debian package build in the working tree.
+/debian/build/
+/debian/cargo/
+/debian/rustup/
+/debian/tmp/
+/debian/files
+/debian/*.substvars
+/debian/*.debhelper.log
+/debian/.debhelper/
+/debian/intel-crashlog/
+/debian/intel-crashlog-efi/
+/debian/libintel-crashlog1/
+/debian/libintel-crashlog-dev/
+
+# Crash Log records extracted from a live platform, which iclg names after the source device. They
+# capture the state of the machine they were taken from, so they should not be committed by
+# accident. The records under lib/tests/samples/ are synthetic fixtures and are named differently.
+pmt:*.crashlog
+*.crashlog.json
+
+# Editor and operating system files. A personal global gitignore is the better place for these, but
+# they turn up often enough in a shared checkout to be worth listing.
+*.swp
+*~
+.DS_Store
+/.idea/
+/.vscode/

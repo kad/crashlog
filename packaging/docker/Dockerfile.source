@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: MIT
+#
+# Builds the source packages the three distribution images then build from: the two upstream
+# tarballs and the Debian .dsc. This is the only image that is run with network access, because it
+# is the one that vendors the Rust dependencies.
+#
+# The base image is deliberately not one of the three target distributions. Vendoring parses the
+# manifests of this repository, which declare edition 2024, so it needs a Cargo from 1.85 or later,
+# whereas the Cargo of a distribution release is whatever that release froze. The official Rust
+# image is used because it always has a current one. Any image with a recent Cargo, Git and dpkg-dev
+# does the job, so a distribution image can be substituted where its toolchain is new enough:
+#
+#   docker build --build-arg BASE_IMAGE=ubuntu:latest -f Dockerfile.source ...
+ARG BASE_IMAGE=rust:latest
+FROM ${BASE_IMAGE}
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# dpkg-dev provides dpkg-source, which turns the tarballs and debian/ into the .dsc. Cargo and rustc
+# are only installed when the base image does not already have them, so that overriding BASE_IMAGE
+# with a distribution image works without downgrading the toolchain of the Rust image.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        dpkg-dev \
+        git \
+        xz-utils; \
+    if ! command -v cargo > /dev/null; then \
+        apt-get install -y --no-install-recommends cargo rustc; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*; \
+    cargo --version; \
+    rustc --version
+
+COPY packaging/docker/make-source.sh /usr/local/bin/make-source
+RUN chmod 0755 /usr/local/bin/make-source
+
+# The repository is bind mounted read only on /src, the tarballs and the .dsc are written to /out.
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/make-source"]

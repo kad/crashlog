@@ -1,0 +1,5 @@
+usr/bin/iclg
+usr/share/bash-completion/completions/iclg
+usr/share/zsh/vendor-completions/_iclg
+usr/share/fish/vendor_completions.d/iclg.fish
+usr/share/man/man1/iclg*.1

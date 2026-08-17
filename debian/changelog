@@ -1,0 +1,13 @@
+intel-crashlog (1.1.0-1) unstable; urgency=medium
+
+  * Initial Debian packaging.
+    - intel-crashlog: the iclg command line tool, its manual pages and shell
+      completions.
+    - libintel-crashlog1 and libintel-crashlog-dev: the shared library, the
+      generated C and C++ headers and the pkg-config file.
+    - intel-crashlog-efi: the UEFI application, built when the
+      pkg.intel-crashlog.efi build profile is enabled.
+  * Build the Rust dependencies from the vendored sources shipped in the
+    vendor component of the upstream tarball, so that the build works offline.
+
+ -- Intel Corporation <crashlog@intel.com>  Fri, 14 Aug 2026 12:00:00 +0300

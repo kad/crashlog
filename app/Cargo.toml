@@ -9,6 +9,20 @@ publish = false
 name = "iclg"
 path = "src/main.rs"
 
+[features]
+default = ["generate-assets"]
+
+# Provides the hidden `generate-assets` sub-command, which writes the manual pages and the shell
+# completion scripts derived from the command line definition. Used when packaging `iclg`.
+generate-assets = [
+    "dep:clap_complete",
+    "dep:clap_mangen",
+    # The generated manual pages give sub-command pages a name derived at runtime (e.g.
+    # `iclg-decode`), which needs clap's `string` feature: without it, `Command::name` only accepts
+    # `&'static str`.
+    "clap/string",
+]
+
 [dependencies]
 log = "0.4"
 env_logger = "0.11"
@@ -18,6 +32,14 @@ serde_json = "1"
 [dependencies.clap]
 version = "4"
 features = ["derive"]
+
+[dependencies.clap_complete]
+version = "4"
+optional = true
+
+[dependencies.clap_mangen]
+version = "0.2"
+optional = true
 
 [profile.release]
 strip = true

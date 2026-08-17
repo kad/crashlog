@@ -1,0 +1,4 @@
+usr/include/intel_crashlog.h
+usr/include/intel_crashlog.hpp
+usr/lib/*/libintel_crashlog.so
+usr/lib/*/pkgconfig/intel_crashlog.pc

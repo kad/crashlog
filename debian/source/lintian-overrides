@@ -1,0 +1,10 @@
+# The Rust dependencies of this package are bundled rather than taken from the librust-*-dev
+# packages of the archive: they are shipped as vendored sources in a separate component of the
+# upstream tarball and built offline. The reasons are in debian/README.source, and the licensing of
+# the tree is described in debian/copyright.
+intel-crashlog source: source-is-missing [vendor/*]
+intel-crashlog source: very-long-line-length-in-source-file [vendor/*]
+
+# The product specific collateral used to decode the Crash Log records is a set of JSON
+# definitions embedded in the library at build time. They are the preferred form of modification.
+intel-crashlog source: source-is-missing [lib/collateral/*]

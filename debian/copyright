@@ -1,0 +1,216 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: crashlog
+Upstream-Contact: https://github.com/intel/crashlog/issues
+Source: https://github.com/intel/crashlog
+Comment:
+ The stanzas covering vendor/* describe the Rust crates that are bundled in the
+ vendor component of the upstream tarball. They have to be checked, and updated
+ if needed, whenever the dependency tree changes:
+ `packaging/vendor-licenses.sh -f dep5` regenerates them from the vendored tree.
+
+Files: *
+Copyright: 2025-2026 Intel Corporation
+License: MIT
+
+Files: debian/*
+Copyright: 2025-2026 Intel Corporation
+License: MIT
+
+Files: CONTRIBUTING.md
+Copyright: 2025-2026 Intel Corporation
+           2004, 2006 The Linux Foundation and its contributors
+License: MIT and DCO-1.1
+Comment:
+ This file quotes the Developer Certificate of Origin version 1.1 verbatim.
+
+Files: vendor/*
+Copyright: The authors of the vendored crates
+License: MIT or Apache-2.0
+Comment:
+ The Rust crates this package depends on are bundled rather than taken from the
+ librust-*-dev packages of the archive: they are shipped as vendored sources in
+ the vendor component of the upstream tarball and built offline. See
+ debian/README.source for why. Each vendored crate keeps its own copyright and
+ license files under vendor/<crate>/, which are the authoritative notices.
+ .
+ The tree covers more than what is linked into the binaries: the build time
+ dependencies, the test dependencies and the crates that only apply to another
+ platform are vendored as well, and are therefore covered here too. The stanzas
+ that follow carve out every crate known not to be offered under the terms of
+ the MIT or the Apache-2.0 license.
+ .
+ A crate appears under vendor/<name>/ when a single version of it is vendored
+ and under vendor/<name>-<version>/ when the three lock files of this source
+ package disagree on the version, which is why some of the patterns below come
+ in two forms.
+ .
+ This blanket stanza summarises the licensing of the vendored tree; it is not a
+ substitute for per-crate stanzas. Before an upload to the Debian archive,
+ replace it with the output of `packaging/vendor-licenses.sh -f dep5`, which
+ reads the vendored tree itself and lists every directory in it with the authors
+ and the license expression the crate declares, and review the result against
+ the files in vendor/<crate>/.
+
+Files: vendor/ucs2/*
+       vendor/uefi/*
+       vendor/uefi-macros/*
+       vendor/uefi-raw/*
+Copyright: The uefi-rs project developers
+License: MPL-2.0
+Comment:
+ These crates are only linked into the intel-crashlog-efi package, which is not
+ built by default.
+
+Files: vendor/uguid/*
+Copyright: The uefi-rs project developers
+License: MPL-2.0
+Comment:
+ Unlike the other crates of the uefi-rs project, this one is an unconditional
+ dependency of the library, so it is linked into every binary this source
+ package builds.
+
+Files: vendor/cbindgen/*
+Copyright: The cbindgen developers
+License: MPL-2.0
+Comment:
+ Build dependency of the library, enabled by the ffi feature, which generates the
+ C and C++ headers. None of its code is linked into a binary this source package
+ builds, but it is part of the vendored tree.
+
+Files: vendor/aho-corasick/*
+       vendor/jiff/*
+       vendor/jiff-static/*
+       vendor/memchr/*
+       vendor/memchr-*/*
+Copyright: Andrew Gallant
+License: Unlicense or MIT
+
+Files: vendor/unicode-ident/*
+Copyright: David Tolnay
+License: MIT or Apache-2.0 and Unicode-3.0
+Comment:
+ The tables of this crate are derived from data files published by Unicode,
+ whose license applies in addition to the license of the crate itself.
+
+License: MIT
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"),
+ to deal in the Software without restriction, including without limitation
+ the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ and/or sell copies of the Software, and to permit persons to whom
+ the Software is furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included
+ in all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
+ OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+ OR OTHER DEALINGS IN THE SOFTWARE.
+
+License: Apache-2.0
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use these files except in compliance with the License. You may obtain a copy
+ of the License at
+ .
+     http://www.apache.org/licenses/LICENSE-2.0
+ .
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ License for the specific language governing permissions and limitations under
+ the License.
+ .
+ On Debian systems, the complete text of the Apache License version 2.0 can be
+ found in /usr/share/common-licenses/Apache-2.0.
+
+License: MPL-2.0
+ This Source Code Form is subject to the terms of the Mozilla Public License,
+ version 2.0. If a copy of the MPL was not distributed with this file, you can
+ obtain one at https://mozilla.org/MPL/2.0/.
+ .
+ On Debian systems, the complete text of the Mozilla Public License version 2.0
+ can be found in /usr/share/common-licenses/MPL-2.0. It is also distributed
+ with the affected crates, in vendor/<crate>/LICENSE.
+
+License: Unlicense
+ This is free and unencumbered software released into the public domain.
+ .
+ Anyone is free to copy, modify, publish, use, compile, sell, or distribute
+ this software, either in source code form or as a compiled binary, for any
+ purpose, commercial or non-commercial, and by any means.
+ .
+ In jurisdictions that recognize copyright laws, the author or authors of this
+ software dedicate any and all copyright interest in the software to the public
+ domain. We make this dedication for the benefit of the public at large and to
+ the detriment of our heirs and successors. We intend this dedication to be an
+ overt act of relinquishment in perpetuity of all present and future rights to
+ this software under copyright law.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ .
+ For more information, please refer to https://unlicense.org/
+
+License: Unicode-3.0
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of data files and any associated documentation (the "Data Files") or software
+ and any associated documentation (the "Software") to deal in the Data Files or
+ Software without restriction, including without limitation the rights to use,
+ copy, modify, merge, publish, distribute, and/or sell copies of the Data Files
+ or Software, and to permit persons to whom the Data Files or Software are
+ furnished to do so, provided that either (a) this copyright and permission
+ notice appear with all copies of the Data Files or Software, or (b) this
+ copyright and permission notice appear in associated Documentation.
+ .
+ THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+ KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD
+ PARTY RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN
+ THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL
+ DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
+ PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
+ ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE
+ DATA FILES OR SOFTWARE.
+ .
+ The complete license, including the required attribution notice, is
+ distributed with the affected crate, in vendor/unicode-ident/LICENSE-UNICODE.
+
+License: DCO-1.1
+ Developer Certificate of Origin
+ Version 1.1
+ .
+ Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+ .
+ Everyone is permitted to copy and distribute verbatim copies of this license
+ document, but changing it is not allowed.
+ .
+ Developer's Certificate of Origin 1.1
+ .
+ By making a contribution to this project, I certify that:
+ .
+ (a) The contribution was created in whole or in part by me and I have the right
+     to submit it under the open source license indicated in the file; or
+ .
+ (b) The contribution is based upon previous work that, to the best of my
+     knowledge, is covered under an appropriate open source license and I have
+     the right under that license to submit that work with modifications,
+     whether created in whole or in part by me, under the same open source
+     license (unless I am permitted to submit under a different license), as
+     indicated in the file; or
+ .
+ (c) The contribution was provided directly to me by some other person who
+     certified (a), (b) or (c) and I have not modified it.
+ .
+ (d) I understand and agree that this project and the contribution are public
+     and that a record of the contribution (including all personal information
+     I submit with it, including my sign-off) is maintained indefinitely and may
+     be redistributed consistent with this project or the open source
+     license(s) involved.

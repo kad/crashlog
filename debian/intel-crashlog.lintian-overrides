@@ -1,0 +1,3 @@
+# Binaries produced by rustc do not use the fortified variants of the C library functions, and
+# rustc has no equivalent of -D_FORTIFY_SOURCE. This applies to every Rust package.
+intel-crashlog: hardening-no-fortify-functions [usr/bin/iclg]

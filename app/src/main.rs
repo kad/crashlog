@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 mod analysis;
+#[cfg(feature = "generate-assets")]
+mod assets;
 mod control;
 mod decode;
 mod extract;
@@ -17,8 +19,10 @@ use log::LevelFilter;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(version, about = "Extract and decode Intel Crash Log records.")]
-struct Cli {
+// The command name is set explicitly: clap derives it from the package name, which is
+// `intel_crashlog_app`, while the installed binary and its manual pages are called `iclg`.
+#[command(name = "iclg", version, about = "Extract and decode Intel Crash Log records.")]
+pub(crate) struct Cli {
     /// Path to the collateral tree. If not specified, the builtin collateral tree will be used.
     #[arg(short, long, value_name = "dir")]
     collateral_tree: Option<PathBuf>,
@@ -81,6 +85,18 @@ enum Command {
     Unpack { input_files: Vec<PathBuf> },
     /// Triage the Crash Log records stored in the input files
     Triage { input_files: Vec<PathBuf> },
+    /// Generate the manual pages and the shell completion scripts
+    ///
+    /// This sub-command is meant to be used when packaging the application: it writes the
+    /// manual pages and the shell completion scripts derived from this command line interface
+    /// into the given directory.
+    #[cfg(feature = "generate-assets")]
+    #[command(hide = true)]
+    GenerateAssets {
+        /// Directory in which the generated files are written
+        #[arg(short, long, value_name = "dir", default_value = ".")]
+        output_dir: PathBuf,
+    },
 }
 
 impl Command {
@@ -110,6 +126,10 @@ impl Command {
                 }
             }
             Command::Triage { input_files } => analysis::triage_files(&mut cm, input_files),
+            #[cfg(feature = "generate-assets")]
+            Command::GenerateAssets { .. } => {
+                unreachable!("handled before the collateral manager is created")
+            }
         }
         Ok(())
     }
@@ -137,6 +157,17 @@ fn main() {
     };
 
     env_logger::Builder::from_env(Env::default().default_filter_or(log_level.to_string())).init();
+
+    // Asset generation does not need any collateral, so it is handled before the collateral
+    // manager is created.
+    #[cfg(feature = "generate-assets")]
+    if let Command::GenerateAssets { output_dir } = &cli.command {
+        if let Err(err) = assets::generate(output_dir) {
+            log::error!("Fatal Error: cannot generate the assets: {err}");
+            std::process::exit(1);
+        }
+        return;
+    }
 
     if let Err(err) = run(cli) {
         log::error!("Fatal Error: {err}");

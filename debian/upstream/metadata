@@ -1,0 +1,7 @@
+---
+Bug-Database: https://github.com/intel/crashlog/issues
+Bug-Submit: https://github.com/intel/crashlog/issues/new
+Repository: https://github.com/intel/crashlog.git
+Repository-Browse: https://github.com/intel/crashlog
+Documentation: https://intel.github.io/crashlog/crates/intel_crashlog/
+Security-Contact: https://github.com/intel/crashlog/blob/main/SECURITY.md

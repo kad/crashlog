@@ -1,0 +1,11 @@
+prefix=@PREFIX@
+exec_prefix=${prefix}
+libdir=@LIBDIR@
+includedir=@INCLUDEDIR@
+
+Name: intel_crashlog
+Description: Library to extract and decode Intel Crash Log records
+URL: https://github.com/intel/crashlog
+Version: @VERSION@
+Cflags: -I${includedir}
+Libs: -L${libdir} -lintel_crashlog

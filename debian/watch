@@ -1,0 +1,13 @@
+# The upstream tarballs of this package are not the ones published by GitHub: the Rust
+# dependencies are bundled in an additional vendor component, and both tarballs are produced by
+# packaging/create-tarballs.sh. This file is therefore only used to detect new upstream releases,
+# with `uscan --report`, and not to import them: `gbp import-orig` is driven by the tarballs from
+# that script instead. See debian/README.source.
+version=4
+
+opts=\
+filenamemangle=s%(?:.*?)?v?(\d[\d.]*)\.tar\.gz%@PACKAGE@-$1.tar.gz%,\
+dversionmangle=auto,\
+repack,compression=xz \
+ https://github.com/intel/crashlog/tags \
+ (?:.*?/)?v?(\d[\d.]*)\.tar\.gz debian
