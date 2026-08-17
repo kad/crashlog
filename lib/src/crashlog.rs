@@ -61,10 +61,41 @@ impl CrashLog {
             return Err(Error::InvalidCrashLog);
         }
 
-        Ok(CrashLog {
+        let mut crashlog = CrashLog {
             regions,
             ..CrashLog::default()
-        })
+        };
+        crashlog.update_metadata_from_records();
+
+        Ok(crashlog)
+    }
+
+    /// Populates [`Metadata::record_types`] and [`Metadata::hardware_timestamp`] from the
+    /// records found in the Crash Log.
+    ///
+    /// The record types are listed in the order they are found, without duplicates. The
+    /// hardware timestamp is taken from the first record that carries one, since crash records
+    /// captured together are expected to share the same (or a very close) timestamp.
+    fn update_metadata_from_records(&mut self) {
+        for region in self.regions.iter() {
+            for record in region.records.iter() {
+                let is_box = record.header.version.record_type == record_types::BOX
+                    || record.header.version.errata().type0_legacy_server_box;
+
+                if !is_box
+                    && let Ok(record_type) = record.header.record_type()
+                    && !self.metadata.record_types.contains(&record_type)
+                {
+                    self.metadata.record_types.push(record_type);
+                }
+
+                if self.metadata.hardware_timestamp.is_none()
+                    && let Some(timestamp) = record.header.timestamp()
+                {
+                    self.metadata.hardware_timestamp = Some(timestamp);
+                }
+            }
+        }
     }
 
     /// Extracts the Crash Log records from [Berr].

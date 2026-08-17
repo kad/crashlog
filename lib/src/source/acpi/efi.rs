@@ -89,6 +89,8 @@ pub(super) fn extract_crashlog() -> Result<CrashLog, Error> {
                 day: time.day(),
                 hour: time.hour(),
                 minute: time.minute(),
+                second: time.second(),
+                millisecond: (time.nanosecond() / 1_000_000) as u16,
             })
             .inspect_err(|err| log::warn!("Cannot get time: {err}"))
             .ok(),

@@ -167,6 +167,11 @@ impl CrashLogSource {
         if let Ok(ref mut crashlogs) = crashlogs {
             for crashlog in crashlogs.iter_mut() {
                 crashlog.metadata.source = Some(self.clone());
+
+                #[cfg(feature = "std")]
+                if crashlog.metadata.time.is_none() {
+                    crashlog.metadata.time = crate::metadata::Time::now();
+                }
             }
         }
 

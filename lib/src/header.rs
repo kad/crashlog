@@ -375,6 +375,23 @@ impl Header {
         self.version.record_type_as_str()
     }
 
+    /// Returns the hardware timestamp embedded in the record, when available.
+    ///
+    /// Only header types 2 and above (and [`HeaderType::Type0LegacyServer`]) carry a
+    /// timestamp. Header types 0 and 1 do not have this field, in which case `None` is
+    /// returned.
+    pub fn timestamp(&self) -> Option<u64> {
+        match self.header_type {
+            HeaderType::Type0 | HeaderType::Type1 => None,
+            HeaderType::Type2 { timestamp, .. }
+            | HeaderType::Type3 { timestamp, .. }
+            | HeaderType::Type4 { timestamp, .. }
+            | HeaderType::Type5 { timestamp, .. }
+            | HeaderType::Type6 { timestamp, .. }
+            | HeaderType::Type0LegacyServer { timestamp, .. } => Some(timestamp),
+        }
+    }
+
     #[cfg(feature = "collateral_manager")]
     pub(super) fn decode_definitions_paths<T: CollateralTree>(
         &self,

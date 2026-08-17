@@ -158,6 +158,8 @@ fn metadata_from_evt_values(
             day: time.wDay as u8,
             hour: time.wHour as u8,
             minute: time.wMinute as u8,
+            second: time.wSecond as u8,
+            millisecond: time.wMilliseconds,
         }),
         computer: unsafe { computer.Anonymous.StringVal.to_string().ok() },
         ..Default::default()
